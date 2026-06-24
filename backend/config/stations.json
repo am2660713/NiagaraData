@@ -1,1 +1,19 @@
-[]
+[
+  {
+    "id": "Akash_Test",
+    "name": "Akash_Test",
+    "connectionMode": "connector",
+    "connectorKey": "akash-test-key",
+    "baseUrl": "https://10.0.0.156/obix",
+    "allowSelfSigned": true,
+    "entries": [
+      {
+        "type": "branch",
+        "label": "Obix Exports",
+        "path": "config/Drivers/ObixNetwork/exports/",
+        "slotPath": "slot:/Drivers/ObixNetwork/exports",
+        "recursive": false
+      }
+    ]
+  }
+]
