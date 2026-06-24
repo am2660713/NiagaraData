@@ -219,7 +219,6 @@ h2 {
   border: 1px solid var(--panel-border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
   color: var(--text);
-  text-decoration: none;
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
@@ -233,6 +232,14 @@ h2 {
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.station-link-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .station-link-meta {
@@ -273,6 +280,7 @@ h2 {
   margin-top: auto;
   color: var(--accent) !important;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .station-link-card:hover,
@@ -343,6 +351,17 @@ button:hover {
 .secondary-button:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
+}
+
+.danger-button {
+  background: rgba(255, 111, 111, 0.16);
+  color: #ffd7d7;
+  border: 1px solid rgba(255, 111, 111, 0.32);
+}
+
+.danger-button:hover {
+  background: rgba(255, 111, 111, 0.28);
+  color: white;
 }
 
 .ghost-button {

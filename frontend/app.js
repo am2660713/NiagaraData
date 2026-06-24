@@ -102,6 +102,31 @@ async function submitStationForm() {
   }
 }
 
+async function deleteStation(stationId, stationName) {
+  const confirmed = window.confirm(`Delete station '${stationName}'?`);
+  if (!confirmed) {
+    return;
+  }
+
+  setMessage(`Deleting station '${stationName}'...`, "info");
+
+  try {
+    const response = await fetch(`/api/stations/${encodeURIComponent(stationId)}`, {
+      method: "DELETE"
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to delete station.");
+    }
+
+    setMessage(`Station '${stationName}' deleted successfully.`, "success");
+    await loadStations();
+  } catch (error) {
+    setMessage(error.message, "error");
+  }
+}
+
 function syncStationModeForm() {
   const connectorMode = stationAccessModeInput.value === "connector";
 
@@ -139,10 +164,20 @@ function renderStationLinks(stations) {
           : station.baseUrl || "Direct Niagara station";
 
       return `
-        <a class="station-link-card" href="${href}">
+        <article class="station-link-card">
           <div class="station-link-top">
             <strong>${escapeHtml(station.name)}</strong>
-            <span class="station-link-badge">${station.entryCount || 0} branches</span>
+            <div class="station-link-top-actions">
+              <span class="station-link-badge">${station.entryCount || 0} branches</span>
+              <button
+                type="button"
+                class="danger-button station-delete-button"
+                data-station-id="${escapeHtml(station.id)}"
+                data-station-name="${escapeHtml(station.name)}"
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <div class="station-link-meta">
             <span class="station-mode-pill">${escapeHtml(modeLabel)}</span>
@@ -150,11 +185,17 @@ function renderStationLinks(stations) {
           </div>
           <span class="station-link-url">${escapeHtml(locationText)}</span>
           <span>${escapeHtml(href)}</span>
-          <span class="station-link-action">Open station page</span>
-        </a>
+          <a class="station-link-action" href="${href}">Open station page</a>
+        </article>
       `;
     })
     .join("");
+
+  stationLinks.querySelectorAll(".station-delete-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await deleteStation(button.dataset.stationId || "", button.dataset.stationName || "");
+    });
+  });
 }
 
 function formatDateTime(value) {

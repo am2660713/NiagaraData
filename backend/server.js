@@ -58,6 +58,20 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    const stationDeleteMatch = requestUrl.pathname.match(/^\/api\/stations\/([^/]+)$/);
+    if (stationDeleteMatch) {
+      if (req.method !== "DELETE") {
+        return sendJson(res, 405, { error: "Only DELETE is allowed for this station route." });
+      }
+
+      const stationId = decodeURIComponent(stationDeleteMatch[1]);
+      const removed = deleteStation(stationId);
+      return sendJson(res, 200, {
+        ok: true,
+        station: summarizeStation(removed)
+      });
+    }
+
     if (requestUrl.pathname === "/api/connector/sync") {
       if (req.method !== "POST") {
         return sendJson(res, 405, { error: "Only POST is allowed for connector sync." });
@@ -272,6 +286,25 @@ function addStation(input) {
   return normalized;
 }
 
+function deleteStation(stationId) {
+  const stationIndex = stations.findIndex((station) => station.id === stationId);
+  if (stationIndex === -1) {
+    const error = new Error(`Station '${stationId}' was not found.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const [removed] = stations.splice(stationIndex, 1);
+  persistStationsConfig();
+
+  if (stationSyncCache[stationId]) {
+    delete stationSyncCache[stationId];
+    writeJsonFile(stationSyncFile, stationSyncCache);
+  }
+
+  return removed;
+}
+
 function buildStationFromInput(input) {
   const name = String(input?.name || "").trim();
   const connectionMode = String(input?.connectionMode || "direct").trim() === "connector" ? "connector" : "direct";
@@ -341,6 +374,34 @@ function appendStationConfig(rawStation) {
 
   existing.push(rawStation);
   writeJsonFile(stationsFile, existing);
+}
+
+function persistStationsConfig() {
+  writeJsonFile(stationsFile, stations.map(serializeStationConfig));
+}
+
+function serializeStationConfig(station) {
+  return {
+    id: station.id,
+    name: station.name,
+    baseUrl: station.baseUrl,
+    username: station.username,
+    apiKey: station.apiKey,
+    apiKeyHeader: station.apiKeyHeader,
+    allowSelfSigned: station.allowSelfSigned,
+    requirePasswordPrompt: station.requirePasswordPrompt,
+    connectionMode: station.connectionMode,
+    connectorKey: station.connectorKey,
+    entries: station.entries.map((entry) => ({
+      type: entry.type,
+      label: entry.label,
+      path: entry.path,
+      slotPath: entry.slotPath,
+      kind: entry.kind,
+      excludePattern: entry.excludePattern,
+      recursive: entry.recursive
+    }))
+  };
 }
 
 function normalizeEntries(entries) {
