@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Niagara Dashboard Home</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Dashboard Home</p>
+          <h1>Select a station dashboard</h1>
+          <p class="intro">
+            This page is only for choosing a station. Click any station below to open its
+            own value page separately.
+          </p>
+          <div class="hero-meta">
+            <span class="meta-pill">One page per station</span>
+            <span class="meta-pill">Password asked on station page</span>
+            <span class="meta-pill">Auto point loading</span>
+          </div>
+        </div>
+
+        <div class="panel stats-panel">
+          <div class="status-row">
+            <span>Total stations</span>
+            <strong id="station-count">0</strong>
+          </div>
+          <div class="status-row">
+            <span>Status</span>
+            <strong id="home-status">Loading...</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="message" class="message info">Loading stations...</section>
+
+      <section class="panel links-panel">
+        <div class="section-heading">
+          <div>
+            <p class="table-eyebrow">Your Stations</p>
+            <h2>Station Pages</h2>
+          </div>
+        </div>
+        <div id="station-links" class="station-links"></div>
+      </section>
+
+      <section class="panel add-station-panel">
+        <div class="section-heading">
+          <div>
+            <p class="table-eyebrow">Setup</p>
+            <h2>Add Station</h2>
+          </div>
+        </div>
+
+        <form id="add-station-form" class="add-station-form">
+          <label class="field">
+            <span>Station Name</span>
+            <input id="station-name-input" type="text" placeholder="Plant 2" required />
+          </label>
+          <label class="field">
+            <span>Station ID (optional)</span>
+            <input id="station-id-input" type="text" placeholder="plant-2" />
+          </label>
+          <label class="field">
+            <span>Base URL</span>
+            <input id="station-base-url-input" type="text" placeholder="https://10.0.0.70/obix" required />
+          </label>
+          <label class="field">
+            <span>Station Username</span>
+            <input id="station-username-input" type="text" placeholder="obixuser" required />
+          </label>
+          <label class="field">
+            <span>Branch Path</span>
+            <input id="station-branch-path-input" type="text" value="config/Drivers/ObixNetwork/exports/" />
+          </label>
+          <label class="field">
+            <span>Branch Slot Path</span>
+            <input id="station-branch-slot-path-input" type="text" value="slot:/Drivers/ObixNetwork/exports" />
+          </label>
+          <label class="checkbox-field">
+            <input id="station-self-signed-input" type="checkbox" checked />
+            <span>Allow self-signed certificate</span>
+          </label>
+          <button id="add-station-button" type="submit">Add Station</button>
+        </form>
+
+        <p class="helper-text">
+          Users will still be asked for the station password on the station value page.
+        </p>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

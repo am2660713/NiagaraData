@@ -1,0 +1,9 @@
+{
+  "name": "niagara-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Starter website for reading Niagara station data through a secure backend proxy.",
+  "scripts": {
+    "start": "node backend/server.js"
+  }
+}

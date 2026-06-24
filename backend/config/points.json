@@ -1,0 +1,9 @@
+[
+  {
+    "type": "branch",
+    "label": "Obix Exports",
+    "path": "config/Drivers/ObixNetwork/exports/",
+    "slotPath": "slot:/Drivers/ObixNetwork/exports",
+    "recursive": false
+  }
+]
