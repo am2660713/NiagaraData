@@ -1,6 +1,13 @@
 @echo off
 cd /d "%~dp0"
-echo Starting Niagara Connector...
+if exist "dist\NiagaraConnector.exe" (
+  echo Starting packaged Niagara Connector...
+  echo.
+  start "" "dist\NiagaraConnector.exe"
+  exit /b 0
+)
+
+echo Starting Niagara Connector in developer mode...
 echo.
 echo A setup page will open in your browser.
 echo If Node.js is missing, please install Node.js first.

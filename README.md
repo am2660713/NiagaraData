@@ -129,6 +129,28 @@ Non-technical users should use the local connector UI instead of editing JSON by
 - Click **Save Connector Setup**
 - Click **Sync Now**
 
+### Windows EXE build for sharing
+
+If you want to give other users a simple Windows app instead of asking them to install Node.js:
+
+- Run `build-connector.bat`
+- or run `npm install`
+- then run `npm run connector:build`
+
+This creates:
+
+- `dist/NiagaraConnector.exe`
+- `dist/Start Niagara Connector.bat`
+- `dist/config.example.json`
+- `dist/CONNECTOR-README.txt`
+
+Then you can share the whole `dist/` folder with another user. They only need to:
+
+- keep the files in one folder
+- double-click `Start Niagara Connector.bat`
+- fill the setup page
+- save and sync
+
 ### Command line
 
 If needed, you can still run:
@@ -150,6 +172,8 @@ The connector still stores settings in:
 - `connector/config.json`
 
 Most users do not need to edit it directly. The local setup UI writes this file automatically.
+
+When using the packaged Windows EXE, the saved `config.json` is written beside `NiagaraConnector.exe`.
 
 Example `connector/config.json`:
 

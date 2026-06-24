@@ -3,8 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "description": "Starter website for reading Niagara station data through a secure backend proxy.",
+  "bin": "connector/index.js",
   "scripts": {
     "start": "node backend/server.js",
-    "connector:start": "node connector/index.js"
+    "connector:start": "node connector/index.js",
+    "connector:dist-assets": "node scripts/prepare-connector-dist.js",
+    "connector:build": "npm run connector:dist-assets && pkg . --targets node18-win-x64 --output dist/NiagaraConnector.exe"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "connector/public/**/*",
+      "connector/config.example.json"
+    ]
   }
 }

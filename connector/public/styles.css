@@ -150,6 +150,34 @@ h1 {
   border-color: rgba(255, 111, 111, 0.35);
 }
 
+.install-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.install-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.install-wide {
+  grid-column: span 2;
+}
+
+.install-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -294,6 +322,10 @@ button:hover {
 
   h1 {
     font-size: 30px;
+  }
+
+  .install-wide {
+    grid-column: span 1;
   }
 
   .section-heading,

@@ -14,6 +14,8 @@ const statusList = document.getElementById("status-list");
 const connectorNameLabel = document.getElementById("connector-name-label");
 const connectorStatusLabel = document.getElementById("connector-status-label");
 const connectorLastSyncLabel = document.getElementById("connector-last-sync-label");
+const connectorModeLabel = document.getElementById("connector-mode-label");
+const connectorConfigPathLabel = document.getElementById("connector-config-path-label");
 
 addStationButton.addEventListener("click", () => {
   addStationCard();
@@ -43,6 +45,7 @@ async function refreshState() {
     }
 
     populateForm(payload.config);
+    renderMeta(payload.meta);
     renderState(payload.state);
   } catch (error) {
     setMessage(error.message, "error");
@@ -233,6 +236,11 @@ function renderState(runtimeState) {
   } else {
     setMessage("Fill the setup form and save it to start syncing.", "info");
   }
+}
+
+function renderMeta(meta = {}) {
+  connectorModeLabel.textContent = meta.isPackaged ? "Windows App" : "Developer Mode";
+  connectorConfigPathLabel.textContent = meta.configPath || "Not available";
 }
 
 function setFieldValue(root, field, value) {

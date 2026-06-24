@@ -5,9 +5,11 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { exec } = require("node:child_process");
 
+const isPackaged = Boolean(process.pkg);
 const connectorDir = __dirname;
+const writableDir = isPackaged ? path.dirname(process.execPath) : connectorDir;
 const publicDir = path.join(connectorDir, "public");
-const configPath = path.join(connectorDir, "config.json");
+const configPath = path.join(writableDir, "config.json");
 const exampleConfigPath = path.join(connectorDir, "config.example.json");
 
 let runtimeConfig = loadConnectorConfig();
@@ -87,7 +89,7 @@ function loadConnectorConfig() {
     const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
     return normalizeConnectorConfig(parsed, { allowPartial: true });
   } catch (error) {
-    console.warn(`Could not read connector/config.json, using example values. ${error.message}`);
+    console.warn(`Could not read ${configPath}, using example values. ${error.message}`);
     return loadExampleConfig();
   }
 }
@@ -340,6 +342,12 @@ function ensureStationState(stationId, stationName) {
 function buildUiState(message = "") {
   return {
     config: runtimeConfig,
+    meta: {
+      isPackaged,
+      uiPort,
+      configPath,
+      writableDir
+    },
     state: {
       ...state,
       message

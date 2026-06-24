@@ -1,3 +1,5 @@
 .env
 connector/config.json
 node_modules
+dist
+.pkg-cache
