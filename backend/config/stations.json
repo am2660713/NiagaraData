@@ -21,7 +21,7 @@
     "name": "XYZ",
     "connectionMode": "connector",
     "connectorKey": "123456",
-    "baseUrl": "https://10.0.0.156/obix",
+    "baseUrl": "https://10.0.0.227/obix",
     "allowSelfSigned": true,
     "entries": [
       {
