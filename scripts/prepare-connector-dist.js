@@ -26,6 +26,8 @@ fs.writeFileSync(
     "  exit /b 1",
     ")",
     "start \"\" \"NiagaraConnector.exe\"",
+    "timeout /t 2 /nobreak >nul",
+    "start \"\" \"http://localhost:3031\"",
     "exit /b 0",
     ""
   ].join("\r\n"),

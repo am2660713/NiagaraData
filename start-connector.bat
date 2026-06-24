@@ -4,6 +4,8 @@ if exist "dist\NiagaraConnector.exe" (
   echo Starting packaged Niagara Connector...
   echo.
   start "" "dist\NiagaraConnector.exe"
+  timeout /t 2 /nobreak >nul
+  start "" "http://localhost:3031"
   exit /b 0
 )
 

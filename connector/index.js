@@ -61,6 +61,17 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 202, buildUiState("Manual sync started."));
     }
 
+    if (requestUrl.pathname === "/api/reset-config") {
+      if (req.method !== "POST") {
+        return sendJson(res, 405, { error: "Only POST is allowed." });
+      }
+
+      runtimeConfig = resetConnectorConfig();
+      resetRuntimeState();
+      resetScheduler();
+      return sendJson(res, 200, buildUiState("Connector setup was reset. Enter new details and save again."));
+    }
+
     return serveStaticFile(requestUrl.pathname, res);
   } catch (error) {
     return sendJson(res, error.statusCode || 500, {
@@ -101,6 +112,29 @@ function loadExampleConfig() {
 
 function saveConnectorConfig(config) {
   fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+function resetConnectorConfig() {
+  if (fs.existsSync(configPath)) {
+    fs.unlinkSync(configPath);
+  }
+
+  return createEmptyConnectorConfig();
+}
+
+function createEmptyConnectorConfig() {
+  return normalizeConnectorConfig(
+    {
+      cloudBaseUrl: "",
+      connectorKey: "",
+      connectorName: "office-connector",
+      syncIntervalMs: 15000,
+      cloudAllowSelfSigned: false,
+      uiPort,
+      stations: []
+    },
+    { allowPartial: true }
+  );
 }
 
 function normalizeConnectorConfig(input, options = {}) {
@@ -233,6 +267,15 @@ function resetScheduler() {
   syncTimer = setInterval(() => {
     runSyncCycle().catch(() => {});
   }, Math.max(Number(runtimeConfig.syncIntervalMs || 15000), 5000));
+}
+
+function resetRuntimeState() {
+  state.syncEnabled = false;
+  state.syncInProgress = false;
+  state.lastCycleStartedAt = "";
+  state.lastCycleFinishedAt = "";
+  state.lastError = "";
+  state.stationStatuses = {};
 }
 
 function isSyncReady(config) {

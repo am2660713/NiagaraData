@@ -10,6 +10,7 @@ const stationTemplate = document.getElementById("station-card-template");
 const addStationButton = document.getElementById("add-station-button");
 const saveConfigButton = document.getElementById("save-config-button");
 const syncNowButton = document.getElementById("sync-now-button");
+const resetConfigButton = document.getElementById("reset-config-button");
 const statusList = document.getElementById("status-list");
 const connectorNameLabel = document.getElementById("connector-name-label");
 const connectorStatusLabel = document.getElementById("connector-status-label");
@@ -27,6 +28,10 @@ saveConfigButton.addEventListener("click", async () => {
 
 syncNowButton.addEventListener("click", async () => {
   await syncNow();
+});
+
+resetConfigButton.addEventListener("click", async () => {
+  await resetConfig();
 });
 
 initialize();
@@ -170,6 +175,36 @@ async function syncNow() {
     setMessage("Manual sync started.", "success");
 
     setTimeout(refreshState, 1200);
+  } catch (error) {
+    setMessage(error.message, "error");
+  }
+}
+
+async function resetConfig() {
+  const confirmed = window.confirm(
+    "Reset this connector setup? This clears the saved cloud and station details on this computer."
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setMessage("Resetting connector setup...", "info");
+
+  try {
+    const response = await fetch("/api/reset-config", {
+      method: "POST"
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to reset connector setup.");
+    }
+
+    populateForm(result.config);
+    renderMeta(result.meta);
+    renderState(result.state);
+    setMessage("Connector setup reset. Enter new details and save again.", "success");
   } catch (error) {
     setMessage(error.message, "error");
   }
