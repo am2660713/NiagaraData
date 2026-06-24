@@ -1,0 +1,25 @@
+{
+  "cloudBaseUrl": "https://your-cloud-app.onrender.com",
+  "connectorKey": "replace-with-your-connector-key",
+  "connectorName": "office-connector",
+  "syncIntervalMs": 15000,
+  "stations": [
+    {
+      "stationId": "akash-test",
+      "name": "Akash Test",
+      "baseUrl": "https://10.0.0.62/obix",
+      "username": "obixuser",
+      "password": "Admin.12345",
+      "allowSelfSigned": true,
+      "entries": [
+        {
+          "type": "branch",
+          "label": "Obix Exports",
+          "path": "config/Drivers/ObixNetwork/exports/",
+          "slotPath": "slot:/Drivers/ObixNetwork/exports",
+          "recursive": false
+        }
+      ]
+    }
+  ]
+}

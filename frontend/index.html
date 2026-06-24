@@ -13,13 +13,13 @@
           <p class="eyebrow">Dashboard Home</p>
           <h1>Select a station dashboard</h1>
           <p class="intro">
-            This page is only for choosing a station. Click any station below to open its
-            own value page separately.
+            Add direct Niagara stations or private stations that sync through a local
+            connector. Each station still gets its own page automatically.
           </p>
           <div class="hero-meta">
             <span class="meta-pill">One page per station</span>
-            <span class="meta-pill">Password asked on station page</span>
-            <span class="meta-pill">Auto point loading</span>
+            <span class="meta-pill">Direct or connector mode</span>
+            <span class="meta-pill">Auto point discovery</span>
           </div>
         </div>
 
@@ -65,12 +65,23 @@
             <input id="station-id-input" type="text" placeholder="plant-2" />
           </label>
           <label class="field">
+            <span>Access Mode</span>
+            <select id="station-access-mode-input">
+              <option value="direct">Direct Cloud Access</option>
+              <option value="connector">Local Connector Sync</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Connector Key</span>
+            <input id="station-connector-key-input" type="text" placeholder="office-connector-key" />
+          </label>
+          <label class="field">
             <span>Base URL</span>
-            <input id="station-base-url-input" type="text" placeholder="https://10.0.0.70/obix" required />
+            <input id="station-base-url-input" type="text" placeholder="https://10.0.0.70/obix" />
           </label>
           <label class="field">
             <span>Station Username</span>
-            <input id="station-username-input" type="text" placeholder="obixuser" required />
+            <input id="station-username-input" type="text" placeholder="obixuser" />
           </label>
           <label class="field">
             <span>Branch Path</span>
@@ -87,8 +98,12 @@
           <button id="add-station-button" type="submit">Add Station</button>
         </form>
 
+        <p id="station-mode-help" class="helper-text">
+          Direct mode means the cloud server connects to Niagara itself.
+        </p>
         <p class="helper-text">
-          Users will still be asked for the station password on the station value page.
+          Connector mode is for private/local Niagara networks. Add the station here, then
+          run the local connector on the same network as Niagara.
         </p>
       </section>
     </main>

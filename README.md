@@ -1,65 +1,105 @@
 # Niagara Multi-Station Dashboard
 
-This project is a user-friendly dashboard for multiple Niagara stations and multiple users.
+This project now supports **two ways** to read Niagara station data:
 
-## What it does
+- **Direct mode**: the cloud app connects to the Niagara oBIX URL itself
+- **Connector mode**: a small local connector runs near Niagara and syncs points into the cloud app
 
-- Loads a list of stations from `backend/config/stations.json`
-- Gives each station its own direct page URL like `/stations/akash-test`
-- Keeps the home page and station value pages separate
-- Shows all configured stations in a dropdown and link list
-- Connects to the selected station's oBIX endpoint
-- Auto-discovers exported points from the configured branch
-- Shows point names and current values in a simple table
+Connector mode is the important part for private stations on local office networks.
 
-## Main files
+## Architecture
 
-- `backend/server.js` - multi-station backend and Niagara proxy
-- `backend/config/stations.json` - station list and branch configuration
-- `frontend/index.html` - dashboard page
-- `frontend/app.js` - station picker and direct-page behavior
-- `frontend/styles.css` - responsive dashboard styling
+### Cloud app
+
+- Runs the website and API
+- Stores station definitions
+- Shows one dashboard page per station
+- Accepts point sync updates from local connectors
+
+### Local connector
+
+- Runs on the same network as Niagara
+- Connects to local/private oBIX URLs like `https://10.0.0.62/obix`
+- Auto-discovers points from `ObixNetwork/exports`
+- Pushes the latest values to the cloud app
 
 ## Folder structure
 
-- `backend/` - server and Niagara station config
-- `frontend/` - HTML, CSS, and browser JavaScript
+- `backend/` - cloud API and station config
+- `backend/config/stations.json` - cloud station definitions
+- `backend/data/station-sync.json` - latest synced connector data
+- `frontend/` - dashboard UI
+- `connector/` - local sync service for private Niagara networks
 
-## Page structure
+## What works now
+
+- Multiple stations
+- One page per station
+- Direct cloud fetch for public/reachable Niagara stations
+- Connector sync for private/local Niagara stations
+- Automatic point discovery from `config/Drivers/ObixNetwork/exports/`
+- Cached latest connector values shown in the cloud dashboard
+
+## Direct mode vs connector mode
+
+### Direct mode
+
+Use direct mode when your cloud server can reach the Niagara URL.
+
+Example:
+
+- `https://public-station.example.com/obix`
+
+### Connector mode
+
+Use connector mode when Niagara is private and only reachable on the local network.
+
+Example:
+
+- `https://10.0.0.62/obix`
+- `https://192.168.1.20/obix`
+
+In connector mode:
+
+- the cloud app does **not** fetch Niagara directly
+- the local connector fetches Niagara and sends points to the cloud app
+
+## Main pages
 
 - Home page: `http://localhost:3000`
-- Station value page: `http://localhost:3000/stations/akash-test`
+- Station page example: `http://localhost:3000/stations/akash-test`
 
-The home page only shows station choices.
-
-Each station page only shows that station's values.
-
-## Direct station pages
-
-Each station gets its own page automatically:
-
-- `http://localhost:3000/stations/akash-test`
-- `http://localhost:3000/stations/second-station-demo`
-
-If you add another station to `backend/config/stations.json`, it will:
-
-- appear in the dropdown automatically
-- appear in the direct links section automatically
-- get its own page URL automatically
-
-## Station config
+## Cloud station config
 
 Example `backend/config/stations.json`:
 
 ```json
 [
   {
-    "id": "akash-test",
-    "name": "Akash Test",
-    "baseUrl": "https://10.0.0.62/obix",
+    "id": "public-station",
+    "name": "Public Station",
+    "connectionMode": "direct",
+    "baseUrl": "https://public-station.example.com/obix",
     "usernameEnv": "NIAGARA_USERNAME",
     "passwordEnv": "NIAGARA_PASSWORD",
     "allowSelfSigned": true,
+    "requirePasswordPrompt": true,
+    "entries": [
+      {
+        "type": "branch",
+        "label": "Obix Exports",
+        "path": "config/Drivers/ObixNetwork/exports/",
+        "slotPath": "slot:/Drivers/ObixNetwork/exports",
+        "recursive": false
+      }
+    ]
+  },
+  {
+    "id": "office-private-station",
+    "name": "Office Private Station",
+    "connectionMode": "connector",
+    "connectorKey": "office-connector-key",
+    "baseUrl": "https://10.0.0.62/obix",
     "entries": [
       {
         "type": "branch",
@@ -73,81 +113,115 @@ Example `backend/config/stations.json`:
 ]
 ```
 
-The repo currently includes two station entries:
+## Local connector config
 
-- `akash-test`
-- `second-station-demo`
+Copy:
 
-Right now `second-station-demo` is only a sample and points to the same Niagara host so you can test two different pages immediately. Replace its `baseUrl`, credentials env vars, and branch settings with your real second station later.
+- `connector/config.example.json`
 
-## Add another user or station
+to:
 
-Add another station object to `backend/config/stations.json`:
+- `connector/config.json`
+
+Then update it.
+
+Example `connector/config.json`:
 
 ```json
 {
-  "id": "plant-2",
-  "name": "Plant 2",
-  "baseUrl": "https://10.0.0.70/obix",
-  "usernameEnv": "PLANT2_USERNAME",
-  "passwordEnv": "PLANT2_PASSWORD",
-  "allowSelfSigned": true,
-  "entries": [
+  "cloudBaseUrl": "https://your-cloud-app.onrender.com",
+  "connectorKey": "office-connector-key",
+  "connectorName": "office-connector",
+  "syncIntervalMs": 15000,
+  "stations": [
     {
-      "type": "branch",
-      "label": "Obix Exports",
-      "path": "config/Drivers/ObixNetwork/exports/",
-      "slotPath": "slot:/Drivers/ObixNetwork/exports",
-      "recursive": false
+      "stationId": "office-private-station",
+      "name": "Office Private Station",
+      "baseUrl": "https://10.0.0.62/obix",
+      "username": "obixuser",
+      "password": "Admin.12345",
+      "allowSelfSigned": true,
+      "entries": [
+        {
+          "type": "branch",
+          "label": "Obix Exports",
+          "path": "config/Drivers/ObixNetwork/exports/",
+          "slotPath": "slot:/Drivers/ObixNetwork/exports",
+          "recursive": false
+        }
+      ]
     }
   ]
 }
 ```
 
-Then add the env vars in `.env`:
+Important:
+
+- `stationId` in `connector/config.json` must match the station id in `backend/config/stations.json`
+- `connectorKey` in `connector/config.json` must match the cloud station `connectorKey`
+
+## Run locally
+
+### Cloud app
+
+```bash
+npm start
+```
+
+### Local connector
+
+```bash
+npm run connector:start
+```
+
+## Environment variables
+
+Example `.env`:
 
 ```env
 PORT=3000
+NIAGARA_BASE_URL=https://public-station.example.com/obix
 NIAGARA_USERNAME=obixuser
 NIAGARA_PASSWORD=Admin.12345
-PLANT2_USERNAME=anotherUser
-PLANT2_PASSWORD=anotherPassword
+NIAGARA_API_KEY=
+NIAGARA_API_KEY_HEADER=x-api-key
+NIAGARA_ALLOW_SELF_SIGNED=true
 ```
 
-## Run
+## Render deployment
 
-```bash
-node backend/server.js
-```
+Render should run the **cloud app only**:
 
-Then open:
+- Build Command: `npm install`
+- Start Command: `npm start`
 
-```text
-http://localhost:3000
-```
-
-Or go directly to one station:
-
-```text
-http://localhost:3000/stations/akash-test
-```
-
-Or the second sample page:
-
-```text
-http://localhost:3000/stations/second-station-demo
-```
+The `connector/` service should **not** run on Render if it needs to reach private Niagara IPs.
+Run the connector locally or on a local office server instead.
 
 ## API routes
 
 - `GET /api/health`
 - `GET /api/stations`
+- `POST /api/stations`
 - `GET /api/stations/:id/config`
 - `GET /api/stations/:id/points`
 - `GET /api/stations/:id/point?path=...`
+- `POST /api/connector/sync`
 
-## Notes
+## Current limitation
 
-- Different users can open the same dashboard and choose different stations independently.
-- Different stations can use different URLs, credentials, and branches.
-- The frontend is read-only right now; it displays values and does not write back to Niagara.
+`backend/data/station-sync.json` is file-based storage for now.
+
+That means:
+
+- local development works well
+- simple demos work well
+- Render may lose synced cache on redeploy/restart unless you later move this to a database
+
+## Recommended next step
+
+For production, the next improvement should be:
+
+- move users, stations, and synced point cache to a database
+- add real user login/authentication
+- add connector registration and heartbeat status

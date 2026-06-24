@@ -235,13 +235,21 @@ h2 {
   gap: 12px;
 }
 
+.station-link-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .station-link-card strong {
   font-size: 18px;
   line-height: 1.3;
 }
 
 .station-link-badge,
-.table-badge {
+.table-badge,
+.station-mode-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -251,6 +259,10 @@ h2 {
   color: #d7e9ff;
   font-size: 12px;
   font-weight: 700;
+}
+
+.station-mode-pill {
+  background: rgba(30, 200, 139, 0.14);
 }
 
 .station-link-url {

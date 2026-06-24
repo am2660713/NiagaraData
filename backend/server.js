@@ -7,10 +7,15 @@ const { URL } = require("node:url");
 const backendDir = __dirname;
 const rootDir = path.join(backendDir, "..");
 const publicDir = path.join(rootDir, "frontend");
-const pointsFile = path.join(backendDir, "config", "points.json");
-const stationsFile = path.join(backendDir, "config", "stations.json");
+const configDir = path.join(backendDir, "config");
+const dataDir = path.join(backendDir, "data");
+const pointsFile = path.join(configDir, "points.json");
+const stationsFile = path.join(configDir, "stations.json");
+const stationSyncFile = path.join(dataDir, "station-sync.json");
 
 loadDotEnv(path.join(rootDir, ".env"));
+ensureDir(configDir);
+ensureDir(dataDir);
 
 const port = Number(process.env.PORT || 3000);
 const contentTypes = {
@@ -24,6 +29,7 @@ const contentTypes = {
 };
 
 const stations = loadStations();
+const stationSyncCache = loadStationSyncCache();
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -33,6 +39,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         ok: true,
         stationCount: stations.length,
+        connectorStationCount: stations.filter((station) => station.connectionMode === "connector").length,
         defaultStationId: stations[0]?.id || ""
       });
     }
@@ -51,76 +58,28 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (requestUrl.pathname === "/api/connector/sync") {
+      if (req.method !== "POST") {
+        return sendJson(res, 405, { error: "Only POST is allowed for connector sync." });
+      }
+
+      const body = await readJsonBody(req);
+      const syncResult = saveConnectorSync(body);
+      return sendJson(res, 200, syncResult);
+    }
+
     const stationMatch = requestUrl.pathname.match(/^\/api\/stations\/([^/]+)\/(config|points|point)$/);
     if (stationMatch) {
       const stationId = decodeURIComponent(stationMatch[1]);
       const action = stationMatch[2];
       const station = getStationOrThrow(stationId);
-      const stationAccess = createStationAccess(station, req);
 
       if (action === "config") {
-        const resolvedPoints = await resolveConfiguredPoints(stationAccess, station.entries);
-        return sendJson(res, 200, {
-          station: summarizeStation(station),
-          entries: station.entries,
-          points: resolvedPoints.map(summarizePointConfig)
-        });
+        return sendJson(res, 200, await buildStationConfigResponse(station, req));
       }
 
       if (action === "points") {
-        const resolvedPoints = await resolveConfiguredPoints(stationAccess, station.entries);
-        const results = await Promise.all(resolvedPoints.map((point) => fetchConfiguredPoint(stationAccess, point)));
-        return sendJson(res, 200, {
-          station: summarizeStation(station),
-          fetchedAt: new Date().toISOString(),
-          points: results
-        });
-      }
-
-      if (action === "point") {
-        const pointPath = requestUrl.searchParams.get("path");
-        if (!pointPath) {
-          return sendJson(res, 400, { error: "Missing query parameter: path" });
-        }
-
-        const result = await fetchConfiguredPoint(stationAccess, {
-          type: "point",
-          label: pointPath,
-          path: pointPath,
-          slotPath: "",
-          kind: "",
-          discoveredFrom: ""
-        });
-
-        return sendJson(res, result.error ? 502 : 200, result);
-      }
-    }
-
-    if (requestUrl.pathname === "/api/config" || requestUrl.pathname === "/api/niagara/points" || requestUrl.pathname === "/api/niagara/point") {
-      if (!stations.length) {
-        return sendJson(res, 400, { error: "No stations configured." });
-      }
-
-      const defaultStation = stations[0];
-      const stationAccess = createStationAccess(defaultStation, req);
-
-      if (requestUrl.pathname === "/api/config") {
-        const resolvedPoints = await resolveConfiguredPoints(stationAccess, defaultStation.entries);
-        return sendJson(res, 200, {
-          station: summarizeStation(defaultStation),
-          entries: defaultStation.entries,
-          points: resolvedPoints.map(summarizePointConfig)
-        });
-      }
-
-      if (requestUrl.pathname === "/api/niagara/points") {
-        const resolvedPoints = await resolveConfiguredPoints(stationAccess, defaultStation.entries);
-        const results = await Promise.all(resolvedPoints.map((point) => fetchConfiguredPoint(stationAccess, point)));
-        return sendJson(res, 200, {
-          station: summarizeStation(defaultStation),
-          fetchedAt: new Date().toISOString(),
-          points: results
-        });
+        return sendJson(res, 200, await buildStationPointsResponse(station, req));
       }
 
       const pointPath = requestUrl.searchParams.get("path");
@@ -128,15 +87,35 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { error: "Missing query parameter: path" });
       }
 
-      const result = await fetchConfiguredPoint(stationAccess, {
-        type: "point",
-        label: pointPath,
-        path: pointPath,
-        slotPath: "",
-        kind: "",
-        discoveredFrom: ""
-      });
+      const singlePoint = await buildSinglePointResponse(station, req, pointPath);
+      return sendJson(res, singlePoint.error ? 502 : 200, singlePoint);
+    }
 
+    if (
+      requestUrl.pathname === "/api/config" ||
+      requestUrl.pathname === "/api/niagara/points" ||
+      requestUrl.pathname === "/api/niagara/point"
+    ) {
+      if (!stations.length) {
+        return sendJson(res, 400, { error: "No stations configured." });
+      }
+
+      const defaultStation = stations[0];
+
+      if (requestUrl.pathname === "/api/config") {
+        return sendJson(res, 200, await buildStationConfigResponse(defaultStation, req));
+      }
+
+      if (requestUrl.pathname === "/api/niagara/points") {
+        return sendJson(res, 200, await buildStationPointsResponse(defaultStation, req));
+      }
+
+      const pointPath = requestUrl.searchParams.get("path");
+      if (!pointPath) {
+        return sendJson(res, 400, { error: "Missing query parameter: path" });
+      }
+
+      const result = await buildSinglePointResponse(defaultStation, req, pointPath);
       return sendJson(res, result.error ? 502 : 200, result);
     }
 
@@ -193,10 +172,26 @@ function stripQuotes(value) {
   return value;
 }
 
+function ensureDir(directoryPath) {
+  fs.mkdirSync(directoryPath, { recursive: true });
+}
+
+function loadJsonFile(filePath, fallbackValue) {
+  if (!fs.existsSync(filePath)) {
+    return fallbackValue;
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function writeJsonFile(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
 function loadStations() {
   if (fs.existsSync(stationsFile)) {
-    const raw = fs.readFileSync(stationsFile, "utf8");
-    const parsed = JSON.parse(raw);
+    const parsed = loadJsonFile(stationsFile, []);
 
     if (!Array.isArray(parsed)) {
       throw new Error("backend/config/stations.json must be an array.");
@@ -220,13 +215,25 @@ function loadStations() {
       apiKey: process.env.NIAGARA_API_KEY || "",
       apiKeyHeader: process.env.NIAGARA_API_KEY_HEADER || "x-api-key",
       allowSelfSigned: String(process.env.NIAGARA_ALLOW_SELF_SIGNED || "false").toLowerCase() === "true",
-      entries: readLegacyPointsConfig()
+      entries: readLegacyPointsConfig(),
+      connectionMode: "direct"
     })
   ].filter(Boolean);
 }
 
+function loadStationSyncCache() {
+  const parsed = loadJsonFile(stationSyncFile, {});
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+}
+
 function normalizeStation(station) {
-  if (!station || !station.id || !station.baseUrl) {
+  if (!station || !station.id) {
+    return null;
+  }
+
+  const connectionMode = station.connectionMode === "connector" ? "connector" : "direct";
+  const baseUrl = String(station.baseUrl || "").trim();
+  if (connectionMode === "direct" && !baseUrl) {
     return null;
   }
 
@@ -242,13 +249,16 @@ function normalizeStation(station) {
   return {
     id: String(station.id),
     name: station.name || station.id,
-    baseUrl: String(station.baseUrl).trim(),
+    baseUrl,
     username,
     password,
     apiKey,
     apiKeyHeader,
     allowSelfSigned,
-    requirePasswordPrompt: Boolean(station.requirePasswordPrompt),
+    requirePasswordPrompt:
+      connectionMode === "direct" ? station.requirePasswordPrompt !== false : false,
+    connectionMode,
+    connectorKey: String(station.connectorKey || "").trim(),
     entries: normalizeEntries(station.entries)
   };
 }
@@ -264,8 +274,10 @@ function addStation(input) {
 
 function buildStationFromInput(input) {
   const name = String(input?.name || "").trim();
+  const connectionMode = String(input?.connectionMode || "direct").trim() === "connector" ? "connector" : "direct";
   const baseUrl = String(input?.baseUrl || "").trim();
   const username = String(input?.username || "").trim();
+  const connectorKey = String(input?.connectorKey || "").trim();
   const branchPath = String(input?.branchPath || "config/Drivers/ObixNetwork/exports/").trim();
   const branchSlotPath = String(input?.branchSlotPath || "slot:/Drivers/ObixNetwork/exports").trim();
   const branchLabel = String(input?.branchLabel || "Obix Exports").trim();
@@ -273,27 +285,11 @@ function buildStationFromInput(input) {
   const id = slugify(idSource);
 
   if (!name) {
-    const error = new Error("Station name is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (!baseUrl) {
-    const error = new Error("Station base URL is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (!username) {
-    const error = new Error("Station username is required.");
-    error.statusCode = 400;
-    throw error;
+    throwBadRequest("Station name is required.");
   }
 
   if (!id) {
-    const error = new Error("Station id could not be created.");
-    error.statusCode = 400;
-    throw error;
+    throwBadRequest("Station id could not be created.");
   }
 
   if (stations.some((station) => station.id === id)) {
@@ -302,13 +298,29 @@ function buildStationFromInput(input) {
     throw error;
   }
 
+  if (connectionMode === "direct") {
+    if (!baseUrl) {
+      throwBadRequest("Station base URL is required for direct mode.");
+    }
+
+    if (!username) {
+      throwBadRequest("Station username is required for direct mode.");
+    }
+  }
+
+  if (connectionMode === "connector" && !connectorKey) {
+    throwBadRequest("Connector key is required for connector mode.");
+  }
+
   return {
     id,
     name,
     baseUrl,
     username,
     allowSelfSigned: Boolean(input?.allowSelfSigned),
-    requirePasswordPrompt: input?.requirePasswordPrompt !== false,
+    requirePasswordPrompt: connectionMode === "direct" && input?.requirePasswordPrompt !== false,
+    connectionMode,
+    connectorKey,
     entries: [
       {
         type: "branch",
@@ -322,16 +334,13 @@ function buildStationFromInput(input) {
 }
 
 function appendStationConfig(rawStation) {
-  const existing = fs.existsSync(stationsFile)
-    ? JSON.parse(fs.readFileSync(stationsFile, "utf8"))
-    : [];
-
+  const existing = loadJsonFile(stationsFile, []);
   if (!Array.isArray(existing)) {
     throw new Error("backend/config/stations.json must be an array.");
   }
 
   existing.push(rawStation);
-  fs.writeFileSync(stationsFile, `${JSON.stringify(existing, null, 2)}\n`, "utf8");
+  writeJsonFile(stationsFile, existing);
 }
 
 function normalizeEntries(entries) {
@@ -353,10 +362,9 @@ function readLegacyPointsConfig() {
     return [];
   }
 
-  const raw = fs.readFileSync(pointsFile, "utf8");
-  const parsed = JSON.parse(raw);
+  const parsed = loadJsonFile(pointsFile, []);
   if (!Array.isArray(parsed)) {
-    throw new Error("config/points.json must be an array.");
+    throw new Error("backend/config/points.json must be an array.");
   }
 
   return normalizeEntries(parsed);
@@ -374,13 +382,122 @@ function getStationOrThrow(stationId) {
 }
 
 function summarizeStation(station) {
+  const sync = getStationSync(station.id);
   return {
     id: station.id,
     name: station.name,
     baseUrl: station.baseUrl,
     requirePasswordPrompt: station.requirePasswordPrompt,
-    entryCount: station.entries.length
+    entryCount: station.entries.length,
+    connectionMode: station.connectionMode,
+    connectorKeyConfigured: Boolean(station.connectorKey),
+    syncStatus:
+      station.connectionMode === "connector"
+        ? sync
+          ? "synced"
+          : "waiting-for-connector"
+        : "direct",
+    lastSyncedAt: sync?.syncedAt || "",
+    cachedPointCount: sync?.pointCount || 0
   };
+}
+
+function getStationSync(stationId) {
+  return stationSyncCache[stationId] || null;
+}
+
+function saveConnectorSync(payload) {
+  const stationId = String(payload?.stationId || "").trim();
+  const connectorKey = String(payload?.connectorKey || "").trim();
+  const fetchedAt = normalizeIsoDate(payload?.fetchedAt) || new Date().toISOString();
+
+  if (!stationId) {
+    throwBadRequest("Connector sync requires stationId.");
+  }
+
+  if (!connectorKey) {
+    throwBadRequest("Connector sync requires connectorKey.");
+  }
+
+  const station = getStationOrThrow(stationId);
+  if (station.connectionMode !== "connector") {
+    throwBadRequest(`Station '${station.name}' is not configured for connector mode.`);
+  }
+
+  if (!station.connectorKey || station.connectorKey !== connectorKey) {
+    const error = new Error(`Connector key is invalid for station '${station.name}'.`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const points = sanitizeConnectorPoints(payload?.points);
+  const snapshot = {
+    stationId,
+    stationName: station.name,
+    fetchedAt,
+    syncedAt: new Date().toISOString(),
+    connectorName: String(payload?.connectorName || "").trim(),
+    pointCount: points.length,
+    points
+  };
+
+  stationSyncCache[stationId] = snapshot;
+  writeJsonFile(stationSyncFile, stationSyncCache);
+
+  return {
+    ok: true,
+    station: summarizeStation(station),
+    syncedAt: snapshot.syncedAt,
+    fetchedAt: snapshot.fetchedAt,
+    pointsReceived: snapshot.pointCount
+  };
+}
+
+function sanitizeConnectorPoints(points) {
+  if (!Array.isArray(points)) {
+    return [];
+  }
+
+  return points.map((point, index) => {
+    const label = normalizeText(point?.label || point?.name || `Point ${index + 1}`);
+    const rawValue = point?.rawValue == null ? "" : String(point.rawValue);
+    const display = normalizeText(point?.display || rawValue);
+    const status = normalizeText(point?.status || "");
+    const ok = point?.ok !== false;
+
+    return {
+      label,
+      path: normalizeText(point?.path || ""),
+      slotPath: normalizeText(point?.slotPath || ""),
+      kind: normalizeText(point?.kind || ""),
+      discoveredFrom: normalizeText(point?.discoveredFrom || ""),
+      url: normalizeText(point?.url || ""),
+      ok,
+      value: point?.value ?? null,
+      rawValue,
+      display,
+      unit: normalizeText(point?.unit || ""),
+      status,
+      href: normalizeText(point?.href || ""),
+      errorClass: normalizeText(point?.errorClass || ""),
+      health: ["ok", "warn", "bad"].includes(point?.health) ? point.health : classifyHealth(status),
+      error: normalizeText(point?.error || "")
+    };
+  });
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeIsoDate(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 }
 
 function slugify(value) {
@@ -389,6 +506,12 @@ function slugify(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function throwBadRequest(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  throw error;
 }
 
 function createStationAccess(station, req) {
@@ -408,6 +531,88 @@ function createStationAccess(station, req) {
     username,
     password
   };
+}
+
+async function buildStationConfigResponse(station, req) {
+  if (station.connectionMode === "connector") {
+    const sync = requireStationSync(station);
+    return {
+      station: summarizeStation(station),
+      entries: station.entries,
+      points: sync.points.map(summarizePointConfig),
+      fetchedAt: sync.fetchedAt,
+      syncedAt: sync.syncedAt
+    };
+  }
+
+  const stationAccess = createStationAccess(station, req);
+  const resolvedPoints = await resolveConfiguredPoints(stationAccess, station.entries);
+  return {
+    station: summarizeStation(station),
+    entries: station.entries,
+    points: resolvedPoints.map(summarizePointConfig)
+  };
+}
+
+async function buildStationPointsResponse(station, req) {
+  if (station.connectionMode === "connector") {
+    const sync = requireStationSync(station);
+    return {
+      station: summarizeStation(station),
+      fetchedAt: sync.fetchedAt,
+      syncedAt: sync.syncedAt,
+      points: sync.points
+    };
+  }
+
+  const stationAccess = createStationAccess(station, req);
+  const resolvedPoints = await resolveConfiguredPoints(stationAccess, station.entries);
+  const points = await Promise.all(resolvedPoints.map((point) => fetchConfiguredPoint(stationAccess, point)));
+  return {
+    station: summarizeStation(station),
+    fetchedAt: new Date().toISOString(),
+    points
+  };
+}
+
+async function buildSinglePointResponse(station, req, pointPath) {
+  if (station.connectionMode === "connector") {
+    const sync = requireStationSync(station);
+    const point = sync.points.find((item) => item.path === pointPath || item.label === pointPath);
+    if (!point) {
+      return {
+        label: pointPath,
+        path: pointPath,
+        ok: false,
+        error: `Point '${pointPath}' was not found in the latest connector sync.`
+      };
+    }
+
+    return point;
+  }
+
+  const stationAccess = createStationAccess(station, req);
+  return fetchConfiguredPoint(stationAccess, {
+    type: "point",
+    label: pointPath,
+    path: pointPath,
+    slotPath: "",
+    kind: "",
+    discoveredFrom: ""
+  });
+}
+
+function requireStationSync(station) {
+  const sync = getStationSync(station.id);
+  if (!sync) {
+    const error = new Error(
+      `No local connector sync has been received yet for station '${station.name}'. Start the connector on the Niagara network first.`
+    );
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return sync;
 }
 
 function summarizePointConfig(point) {
@@ -538,7 +743,7 @@ function buildPointUrl(baseUrl, pointPath) {
     return pointPath;
   }
 
-  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const normalizedBase = String(baseUrl || "").replace(/\/+$/, "");
   const normalizedPath = pointPath.replace(/^\/+/, "");
   return `${normalizedBase}/${normalizedPath}`;
 }
@@ -560,7 +765,10 @@ function fetchText(station, targetUrl, redirectCount = 0) {
   const options = {
     method: "GET",
     headers,
-    agent: urlObject.protocol === "https:" ? new https.Agent({ rejectUnauthorized: !station.allowSelfSigned }) : undefined
+    agent:
+      urlObject.protocol === "https:"
+        ? new https.Agent({ rejectUnauthorized: !station.allowSelfSigned })
+        : undefined
   };
 
   return new Promise((resolve, reject) => {
@@ -616,7 +824,18 @@ function fetchText(station, targetUrl, redirectCount = 0) {
       });
     });
 
-    request.on("error", reject);
+    request.on("error", (error) => {
+      if (["EHOSTUNREACH", "ENETUNREACH", "ETIMEDOUT"].includes(error.code)) {
+        reject(
+          new Error(
+            `Station '${station.name}' is not reachable from this server. If the Niagara host is on a private network, use connector mode instead of direct mode.`
+          )
+        );
+        return;
+      }
+
+      reject(error);
+    });
     request.end();
   });
 }
@@ -806,7 +1025,7 @@ function readJsonBody(req) {
 
     req.on("data", (chunk) => {
       body += chunk;
-      if (body.length > 1024 * 1024) {
+      if (body.length > 5 * 1024 * 1024) {
         reject(new Error("Request body is too large."));
       }
     });

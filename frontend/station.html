@@ -21,10 +21,12 @@
           <p class="eyebrow">Station Values</p>
           <h1 id="station-title">Loading station...</h1>
           <p class="intro">
-            This page shows values for one station only. Use the station list to switch,
-            or go back to the dashboard home.
+            This page shows values for one station only. Direct stations fetch live from the
+            cloud. Connector stations show the latest sync pushed from the local Niagara
+            network.
           </p>
           <div class="hero-meta">
+            <span id="station-connection-mode" class="meta-pill">Checking mode</span>
             <span id="station-lock-status" class="meta-pill">Checking access</span>
             <span id="station-entry-count" class="meta-pill">0 branches</span>
             <span id="station-base-url" class="meta-pill">Waiting for station</span>
@@ -70,6 +72,10 @@
           <input id="auto-refresh" type="checkbox" checked />
           <span>Auto refresh every 15 seconds</span>
         </label>
+
+        <p id="station-connection-help" class="helper-text">
+          Loading station access details...
+        </p>
       </section>
 
       <section id="message" class="message info">Loading station...</section>
