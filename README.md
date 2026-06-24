@@ -113,17 +113,43 @@ Example `backend/config/stations.json`:
 ]
 ```
 
-## Local connector config
+## User-friendly connector setup
 
-Copy:
+Non-technical users should use the local connector UI instead of editing JSON by hand.
 
-- `connector/config.example.json`
+### Windows
 
-to:
+- Double-click `start-connector.bat`
+- A local setup page opens in the browser
+- Fill in:
+  - Cloud App URL
+  - Connector Key
+  - Local Niagara URL
+  - Username and password
+- Click **Save Connector Setup**
+- Click **Sync Now**
+
+### Command line
+
+If needed, you can still run:
+
+```bash
+npm run connector:start
+```
+
+The connector UI opens at:
+
+```text
+http://localhost:3031
+```
+
+## Advanced connector config
+
+The connector still stores settings in:
 
 - `connector/config.json`
 
-Then update it.
+Most users do not need to edit it directly. The local setup UI writes this file automatically.
 
 Example `connector/config.json`:
 
@@ -170,9 +196,8 @@ npm start
 
 ### Local connector
 
-```bash
-npm run connector:start
-```
+- Double-click `start-connector.bat`
+- or run `npm run connector:start`
 
 ## Environment variables
 

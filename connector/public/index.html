@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Niagara Connector Setup</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Local Connector</p>
+          <h1>Niagara Connector Setup</h1>
+          <p class="intro">
+            This local tool connects to private Niagara stations on your network and sends the
+            latest `ObixNetwork/exports` data to your cloud dashboard.
+          </p>
+          <div class="hero-meta">
+            <span class="meta-pill">No JSON editing needed</span>
+            <span class="meta-pill">Runs on local network</span>
+            <span class="meta-pill">Syncs to cloud dashboard</span>
+          </div>
+        </div>
+
+        <div class="panel stats-panel">
+          <div class="status-row">
+            <span>Connector</span>
+            <strong id="connector-name-label">local-connector</strong>
+          </div>
+          <div class="status-row">
+            <span>Status</span>
+            <strong id="connector-status-label">Loading...</strong>
+          </div>
+          <div class="status-row">
+            <span>Last sync</span>
+            <strong id="connector-last-sync-label">Never</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="message" class="message info">Loading connector setup...</section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="table-eyebrow">Cloud Settings</p>
+            <h2>Connector Setup</h2>
+          </div>
+        </div>
+
+        <form id="connector-form" class="connector-form">
+          <label class="field">
+            <span>Cloud App URL</span>
+            <input id="cloud-base-url-input" type="text" placeholder="https://your-cloud-app.onrender.com" />
+          </label>
+          <label class="field">
+            <span>Connector Key</span>
+            <input id="connector-key-input" type="text" placeholder="connector-key-from-cloud-app" />
+          </label>
+          <label class="field">
+            <span>Connector Name</span>
+            <input id="connector-name-input" type="text" placeholder="office-connector" />
+          </label>
+          <label class="field">
+            <span>Sync Interval (ms)</span>
+            <input id="sync-interval-input" type="text" placeholder="15000" />
+          </label>
+          <label class="checkbox-field">
+            <input id="cloud-self-signed-input" type="checkbox" />
+            <span>Allow self-signed certificate for cloud app</span>
+          </label>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="table-eyebrow">Local Niagara Stations</p>
+            <h2>Stations To Sync</h2>
+          </div>
+          <button id="add-station-button" type="button" class="secondary-button">Add Station</button>
+        </div>
+
+        <div id="stations-container" class="connector-stations"></div>
+
+        <div class="actions-group connector-actions">
+          <button id="save-config-button" type="button">Save Connector Setup</button>
+          <button id="sync-now-button" type="button" class="secondary-button">Sync Now</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="table-eyebrow">Live Status</p>
+            <h2>Station Sync Status</h2>
+          </div>
+        </div>
+        <div id="status-list" class="status-list"></div>
+      </section>
+    </main>
+
+    <template id="station-card-template">
+      <div class="station-config-card">
+        <div class="station-config-header">
+          <strong class="station-card-title">Local Station</strong>
+          <button type="button" class="ghost-button remove-station-button">Remove</button>
+        </div>
+        <div class="station-config-grid">
+          <label class="field">
+            <span>Cloud Station ID</span>
+            <input data-field="stationId" type="text" placeholder="akash-test" />
+          </label>
+          <label class="field">
+            <span>Station Name</span>
+            <input data-field="name" type="text" placeholder="Akash Test" />
+          </label>
+          <label class="field">
+            <span>Niagara oBIX URL</span>
+            <input data-field="baseUrl" type="text" placeholder="https://10.0.0.62/obix" />
+          </label>
+          <label class="field">
+            <span>Station Username</span>
+            <input data-field="username" type="text" placeholder="obixuser" />
+          </label>
+          <label class="field">
+            <span>Station Password</span>
+            <input data-field="password" type="password" placeholder="Station password" />
+          </label>
+          <label class="field">
+            <span>Branch Path</span>
+            <input data-field="branchPath" type="text" placeholder="config/Drivers/ObixNetwork/exports/" />
+          </label>
+          <label class="field">
+            <span>Branch Slot Path</span>
+            <input data-field="branchSlotPath" type="text" placeholder="slot:/Drivers/ObixNetwork/exports" />
+          </label>
+          <label class="checkbox-field">
+            <input data-field="allowSelfSigned" type="checkbox" />
+            <span>Allow self-signed Niagara certificate</span>
+          </label>
+        </div>
+      </div>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

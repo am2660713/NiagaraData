@@ -3,96 +3,146 @@ const http = require("node:http");
 const https = require("node:https");
 const path = require("node:path");
 const { URL } = require("node:url");
+const { exec } = require("node:child_process");
 
-const configPath = path.join(__dirname, "config.json");
-const exampleConfigPath = path.join(__dirname, "config.example.json");
+const connectorDir = __dirname;
+const publicDir = path.join(connectorDir, "public");
+const configPath = path.join(connectorDir, "config.json");
+const exampleConfigPath = path.join(connectorDir, "config.example.json");
 
-const config = loadConnectorConfig();
-const syncIntervalMs = Math.max(Number(config.syncIntervalMs || 15000), 5000);
+let runtimeConfig = loadConnectorConfig();
+let syncTimer = null;
+let browserOpened = false;
 
-let syncInProgress = false;
+const state = {
+  syncEnabled: false,
+  syncInProgress: false,
+  lastCycleStartedAt: "",
+  lastCycleFinishedAt: "",
+  lastError: "",
+  stationStatuses: {}
+};
 
-console.log(`Connector '${config.connectorName || "local-connector"}' started.`);
-console.log(`Cloud app: ${config.cloudBaseUrl}`);
-console.log(`Stations: ${config.stations.length}`);
+const uiPort = getUiPort(runtimeConfig);
 
-runSyncCycle();
-setInterval(runSyncCycle, syncIntervalMs);
-
-async function runSyncCycle() {
-  if (syncInProgress) {
-    console.log("Previous sync still running, skipping this interval.");
-    return;
-  }
-
-  syncInProgress = true;
-
+const server = http.createServer(async (req, res) => {
   try {
-    for (const station of config.stations) {
-      await syncStation(station);
+    const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+
+    if (requestUrl.pathname === "/api/state") {
+      return sendJson(res, 200, buildUiState());
     }
+
+    if (requestUrl.pathname === "/api/config") {
+      if (req.method === "GET") {
+        return sendJson(res, 200, { config: runtimeConfig });
+      }
+
+      if (req.method === "POST") {
+        const body = await readJsonBody(req);
+        const normalized = normalizeConnectorConfig(body);
+        saveConnectorConfig(normalized);
+        runtimeConfig = normalized;
+        resetScheduler();
+        return sendJson(res, 200, buildUiState("Configuration saved."));
+      }
+
+      return sendJson(res, 405, { error: "Only GET and POST are allowed." });
+    }
+
+    if (requestUrl.pathname === "/api/sync-now") {
+      if (req.method !== "POST") {
+        return sendJson(res, 405, { error: "Only POST is allowed." });
+      }
+
+      runSyncCycle({ manual: true }).catch(() => {});
+      return sendJson(res, 202, buildUiState("Manual sync started."));
+    }
+
+    return serveStaticFile(requestUrl.pathname, res);
   } catch (error) {
-    console.error("Connector sync cycle failed:", error.message);
-  } finally {
-    syncInProgress = false;
+    return sendJson(res, error.statusCode || 500, {
+      error: error.message || "Unexpected connector error."
+    });
   }
-}
+});
 
-async function syncStation(station) {
-  const runtimeStation = normalizeStationConfig(station);
-  console.log(`Syncing '${runtimeStation.name}' from ${runtimeStation.baseUrl}`);
+server.listen(uiPort, () => {
+  console.log(`Connector setup is ready at http://localhost:${uiPort}`);
+  maybeOpenBrowser(uiPort);
+  resetScheduler();
+});
 
-  const resolvedPoints = await resolveConfiguredPoints(runtimeStation, runtimeStation.entries);
-  const points = await Promise.all(
-    resolvedPoints.map((point) => fetchConfiguredPoint(runtimeStation, point))
-  );
-
-  const payload = {
-    connectorKey: config.connectorKey,
-    connectorName: config.connectorName || "local-connector",
-    stationId: runtimeStation.stationId,
-    stationName: runtimeStation.name,
-    fetchedAt: new Date().toISOString(),
-    points
-  };
-
-  const syncUrl = `${String(config.cloudBaseUrl).replace(/\/+$/, "")}/api/connector/sync`;
-  const response = await postJson(syncUrl, payload, Boolean(config.cloudAllowSelfSigned));
-
-  console.log(
-    `Synced '${runtimeStation.name}' -> ${response.pointsReceived || points.length} points at ${response.syncedAt || "unknown time"}`
-  );
+function getUiPort(config) {
+  const port = Number(process.env.CONNECTOR_PORT || config.uiPort || 3031);
+  return Number.isFinite(port) && port > 0 ? port : 3031;
 }
 
 function loadConnectorConfig() {
   if (!fs.existsSync(configPath)) {
-    throw new Error(
-      `Missing connector/config.json. Copy '${exampleConfigPath}' to '${configPath}' and update it first.`
-    );
+    return loadExampleConfig();
   }
 
-  const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
-
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("connector/config.json must be a JSON object.");
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    return normalizeConnectorConfig(parsed, { allowPartial: true });
+  } catch (error) {
+    console.warn(`Could not read connector/config.json, using example values. ${error.message}`);
+    return loadExampleConfig();
   }
-
-  if (!parsed.cloudBaseUrl) {
-    throw new Error("connector/config.json is missing cloudBaseUrl.");
-  }
-
-  if (!parsed.connectorKey) {
-    throw new Error("connector/config.json is missing connectorKey.");
-  }
-
-  if (!Array.isArray(parsed.stations) || !parsed.stations.length) {
-    throw new Error("connector/config.json must contain at least one station.");
-  }
-
-  return parsed;
 }
 
-function normalizeStationConfig(station) {
+function loadExampleConfig() {
+  const parsed = JSON.parse(fs.readFileSync(exampleConfigPath, "utf8"));
+  return normalizeConnectorConfig(parsed, { allowPartial: true });
+}
+
+function saveConnectorConfig(config) {
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+function normalizeConnectorConfig(input, options = {}) {
+  const allowPartial = options.allowPartial === true;
+  const stations = Array.isArray(input?.stations) ? input.stations : [];
+
+  const normalized = {
+    cloudBaseUrl: String(input?.cloudBaseUrl || "").trim(),
+    connectorKey: String(input?.connectorKey || "").trim(),
+    connectorName: String(input?.connectorName || "office-connector").trim() || "office-connector",
+    syncIntervalMs: Math.max(Number(input?.syncIntervalMs || 15000), 5000),
+    cloudAllowSelfSigned: Boolean(
+      input?.cloudAllowSelfSigned === true ||
+      String(input?.cloudAllowSelfSigned || "").toLowerCase() === "true"
+    ),
+    uiPort: getUiPort(input || {}),
+    stations: stations
+      .map((station) => normalizeStationConfig(station, { allowPartial }))
+      .filter(Boolean)
+  };
+
+  if (!allowPartial) {
+    validateConnectorConfig(normalized);
+  }
+
+  return normalized;
+}
+
+function validateConnectorConfig(config) {
+  if (!config.cloudBaseUrl) {
+    throwBadRequest("Cloud app URL is required.");
+  }
+
+  if (!config.connectorKey) {
+    throwBadRequest("Connector key is required.");
+  }
+
+  if (!Array.isArray(config.stations) || !config.stations.length) {
+    throwBadRequest("At least one local station is required.");
+  }
+}
+
+function normalizeStationConfig(station, options = {}) {
+  const allowPartial = options.allowPartial === true;
   const stationId = String(station?.stationId || "").trim();
   const name = String(station?.name || stationId).trim();
   const baseUrl = String(station?.baseUrl || "").trim();
@@ -105,19 +155,7 @@ function normalizeStationConfig(station) {
     String(station?.allowSelfSigned || "").toLowerCase() === "true"
   );
 
-  if (!stationId) {
-    throw new Error("Each connector station needs stationId.");
-  }
-
-  if (!baseUrl) {
-    throw new Error(`Connector station '${stationId}' is missing baseUrl.`);
-  }
-
-  if (!apiKey && !username) {
-    throw new Error(`Connector station '${stationId}' needs a username or API key.`);
-  }
-
-  return {
+  const normalized = {
     stationId,
     name,
     baseUrl,
@@ -126,8 +164,24 @@ function normalizeStationConfig(station) {
     apiKey,
     apiKeyHeader,
     allowSelfSigned,
-    entries: normalizeEntries(station.entries)
+    entries: normalizeEntries(station?.entries)
   };
+
+  if (!allowPartial) {
+    if (!stationId) {
+      throwBadRequest("Each local station needs a station ID.");
+    }
+
+    if (!baseUrl) {
+      throwBadRequest(`Local station '${stationId || name || "unknown"}' is missing the Niagara URL.`);
+    }
+
+    if (!apiKey && !username) {
+      throwBadRequest(`Local station '${stationId || name || "unknown"}' needs a username or API key.`);
+    }
+  }
+
+  return normalized.stationId || allowPartial ? normalized : null;
 }
 
 function normalizeEntries(entries) {
@@ -158,6 +212,139 @@ function normalizeEntries(entries) {
       recursive: false
     }
   ];
+}
+
+function resetScheduler() {
+  if (syncTimer) {
+    clearInterval(syncTimer);
+    syncTimer = null;
+  }
+
+  state.syncEnabled = isSyncReady(runtimeConfig);
+  if (!state.syncEnabled) {
+    state.lastError = "Finish the connector setup form with your real station details and save it before syncing.";
+    return;
+  }
+
+  state.lastError = "";
+  runSyncCycle().catch(() => {});
+  syncTimer = setInterval(() => {
+    runSyncCycle().catch(() => {});
+  }, Math.max(Number(runtimeConfig.syncIntervalMs || 15000), 5000));
+}
+
+function isSyncReady(config) {
+  try {
+    validateConnectorConfig(config);
+    if (
+      config.cloudBaseUrl.includes("your-cloud-app.onrender.com") ||
+      config.connectorKey.includes("replace-with-your-connector-key")
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runSyncCycle(options = {}) {
+  if (!isSyncReady(runtimeConfig)) {
+    state.syncEnabled = false;
+    return;
+  }
+
+  if (state.syncInProgress) {
+    if (options.manual) {
+      state.lastError = "A sync is already running.";
+    }
+    return;
+  }
+
+  state.syncInProgress = true;
+  state.lastCycleStartedAt = new Date().toISOString();
+  state.lastError = "";
+
+  try {
+    for (const station of runtimeConfig.stations) {
+      await syncStation(station);
+    }
+  } catch (error) {
+    state.lastError = error.message;
+    console.error("Connector sync cycle failed:", error.message);
+  } finally {
+    state.syncInProgress = false;
+    state.lastCycleFinishedAt = new Date().toISOString();
+  }
+}
+
+async function syncStation(station) {
+  const stationState = ensureStationState(station.stationId, station.name);
+  stationState.status = "syncing";
+  stationState.lastError = "";
+  stationState.lastStartedAt = new Date().toISOString();
+
+  try {
+    console.log(`Syncing '${station.name}' from ${station.baseUrl}`);
+
+    const resolvedPoints = await resolveConfiguredPoints(station, station.entries);
+    const points = await Promise.all(resolvedPoints.map((point) => fetchConfiguredPoint(station, point)));
+
+    const payload = {
+      connectorKey: runtimeConfig.connectorKey,
+      connectorName: runtimeConfig.connectorName || "local-connector",
+      stationId: station.stationId,
+      stationName: station.name,
+      fetchedAt: new Date().toISOString(),
+      points
+    };
+
+    const syncUrl = `${String(runtimeConfig.cloudBaseUrl).replace(/\/+$/, "")}/api/connector/sync`;
+    const response = await postJson(syncUrl, payload, Boolean(runtimeConfig.cloudAllowSelfSigned));
+
+    stationState.status = "ok";
+    stationState.lastSyncedAt = response.syncedAt || new Date().toISOString();
+    stationState.lastFinishedAt = new Date().toISOString();
+    stationState.lastError = "";
+    stationState.pointsReceived = response.pointsReceived || points.length;
+
+    console.log(
+      `Synced '${station.name}' -> ${stationState.pointsReceived} points at ${stationState.lastSyncedAt}`
+    );
+  } catch (error) {
+    stationState.status = "error";
+    stationState.lastError = error.message;
+    stationState.lastFinishedAt = new Date().toISOString();
+    throw error;
+  }
+}
+
+function ensureStationState(stationId, stationName) {
+  if (!state.stationStatuses[stationId]) {
+    state.stationStatuses[stationId] = {
+      stationId,
+      stationName,
+      status: "idle",
+      lastStartedAt: "",
+      lastFinishedAt: "",
+      lastSyncedAt: "",
+      pointsReceived: 0,
+      lastError: ""
+    };
+  }
+
+  return state.stationStatuses[stationId];
+}
+
+function buildUiState(message = "") {
+  return {
+    config: runtimeConfig,
+    state: {
+      ...state,
+      message
+    }
+  };
 }
 
 async function resolveConfiguredPoints(station, entries) {
@@ -560,4 +747,99 @@ function classifyHealth(status) {
   }
 
   return "warn";
+}
+
+function maybeOpenBrowser(port) {
+  if (browserOpened || process.env.CONNECTOR_NO_BROWSER === "true") {
+    return;
+  }
+
+  browserOpened = true;
+  const url = `http://localhost:${port}`;
+
+  if (process.platform === "win32") {
+    exec(`start "" "${url}"`);
+    return;
+  }
+
+  if (process.platform === "darwin") {
+    exec(`open "${url}"`);
+    return;
+  }
+
+  exec(`xdg-open "${url}"`);
+}
+
+function serveStaticFile(requestPath, res) {
+  const safePath = requestPath === "/" ? "/index.html" : requestPath;
+  const resolvedPath = path.normalize(path.join(publicDir, safePath));
+
+  if (!resolvedPath.startsWith(publicDir)) {
+    return sendText(res, 403, "Forbidden");
+  }
+
+  if (!fs.existsSync(resolvedPath) || fs.statSync(resolvedPath).isDirectory()) {
+    return sendText(res, 404, "Not found");
+  }
+
+  const extension = path.extname(resolvedPath).toLowerCase();
+  const contentType =
+    extension === ".html"
+      ? "text/html; charset=utf-8"
+      : extension === ".css"
+        ? "text/css; charset=utf-8"
+        : extension === ".js"
+          ? "application/javascript; charset=utf-8"
+          : "application/octet-stream";
+
+  res.writeHead(200, { "Content-Type": contentType });
+  res.end(fs.readFileSync(resolvedPath));
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 2 * 1024 * 1024) {
+        reject(new Error("Request body is too large."));
+      }
+    });
+
+    req.on("end", () => {
+      if (!body.trim()) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error("Invalid JSON request body."));
+      }
+    });
+
+    req.on("error", reject);
+  });
+}
+
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json; charset=utf-8"
+  });
+  res.end(JSON.stringify(data, null, 2));
+}
+
+function sendText(res, statusCode, text) {
+  res.writeHead(statusCode, {
+    "Content-Type": "text/plain; charset=utf-8"
+  });
+  res.end(text);
+}
+
+function throwBadRequest(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  throw error;
 }
