@@ -33,18 +33,40 @@
           </div>
         </div>
 
-        <div class="panel stats-panel">
-          <div class="status-row">
-            <span>Station</span>
-            <strong id="selected-station-name">None</strong>
+        <div class="hero-side">
+          <div class="panel stats-panel">
+            <div class="status-row">
+              <span>Station</span>
+              <strong id="selected-station-name">None</strong>
+            </div>
+            <div class="status-row">
+              <span>Points</span>
+              <strong id="point-count">0</strong>
+            </div>
+            <div class="status-row">
+              <span>Last refresh</span>
+              <strong id="last-refresh">Never</strong>
+            </div>
           </div>
-          <div class="status-row">
-            <span>Points</span>
-            <strong id="point-count">0</strong>
-          </div>
-          <div class="status-row">
-            <span>Last refresh</span>
-            <strong id="last-refresh">Never</strong>
+
+          <div class="panel mini-help-panel">
+            <p class="table-eyebrow">Good To Know</p>
+            <div class="step-list compact">
+              <div class="step-item compact">
+                <span class="step-number">A</span>
+                <div>
+                  <strong>Direct station</strong>
+                  <span>Unlock with the station password for live reads</span>
+                </div>
+              </div>
+              <div class="step-item compact">
+                <span class="step-number">B</span>
+                <div>
+                  <strong>Connector station</strong>
+                  <span>Shows the latest data pushed from the local connector</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -79,6 +101,19 @@
       </section>
 
       <section id="message" class="message info">Loading station...</section>
+
+      <section class="info-grid compact-grid">
+        <article class="panel info-card">
+          <p class="table-eyebrow">Values</p>
+          <h2>Simple point table</h2>
+          <p>Only the point name and current value are shown to keep the page easy to scan.</p>
+        </article>
+        <article class="panel info-card">
+          <p class="table-eyebrow">Refresh</p>
+          <h2>Manual or automatic</h2>
+          <p>Use refresh now anytime, or leave auto refresh on for regular updates.</p>
+        </article>
+      </section>
 
       <section class="panel table-panel">
         <div class="table-header">

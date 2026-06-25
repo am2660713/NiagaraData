@@ -32,6 +32,40 @@ body {
   padding: 32px 20px 48px;
 }
 
+.top-strip {
+  margin-bottom: 18px;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.brand-chip {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(77, 163, 255, 0.12);
+  border: 1px solid rgba(77, 163, 255, 0.28);
+  color: #d7e9ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.brand-copy strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
 .hero {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -44,6 +78,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.hero-side {
+  display: grid;
+  gap: 18px;
 }
 
 .eyebrow,
@@ -150,6 +189,79 @@ h1 {
   border-color: rgba(255, 111, 111, 0.35);
 }
 
+.mini-help-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.step-list {
+  display: grid;
+  gap: 12px;
+}
+
+.step-list.compact {
+  gap: 10px;
+}
+
+.step-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.step-item.compact {
+  gap: 10px;
+}
+
+.step-item > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-item strong {
+  font-size: 14px;
+}
+
+.step-item span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(77, 163, 255, 0.16);
+  border: 1px solid rgba(77, 163, 255, 0.34);
+  color: #d7e9ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-card p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .install-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -184,6 +296,13 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.section-copy {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 660px;
 }
 
 .connector-form,
@@ -304,6 +423,12 @@ button:hover {
   margin-bottom: 14px;
 }
 
+.station-card-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .status-list {
   display: grid;
   gap: 12px;
@@ -333,6 +458,10 @@ button:hover {
 
   h1 {
     font-size: 30px;
+  }
+
+  .brand-lockup {
+    align-items: flex-start;
   }
 
   .install-wide {

@@ -8,6 +8,16 @@
   </head>
   <body>
     <main class="page">
+      <section class="top-strip">
+        <div class="brand-lockup">
+          <div class="brand-chip">Connector</div>
+          <div class="brand-copy">
+            <strong>Niagara Local Sync App</strong>
+            <span>Runs near the station and pushes values to the cloud dashboard</span>
+          </div>
+        </div>
+      </section>
+
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Local Connector</p>
@@ -23,29 +33,77 @@
           </div>
         </div>
 
-        <div class="panel stats-panel">
-          <div class="status-row">
-            <span>Connector</span>
-            <strong id="connector-name-label">local-connector</strong>
+        <div class="hero-side">
+          <div class="panel stats-panel">
+            <div class="status-row">
+              <span>Connector</span>
+              <strong id="connector-name-label">local-connector</strong>
+            </div>
+            <div class="status-row">
+              <span>Status</span>
+              <strong id="connector-status-label">Loading...</strong>
+            </div>
+            <div class="status-row">
+              <span>Last sync</span>
+              <strong id="connector-last-sync-label">Never</strong>
+            </div>
           </div>
-          <div class="status-row">
-            <span>Status</span>
-            <strong id="connector-status-label">Loading...</strong>
-          </div>
-          <div class="status-row">
-            <span>Last sync</span>
-            <strong id="connector-last-sync-label">Never</strong>
+
+          <div class="panel mini-help-panel">
+            <p class="table-eyebrow">Setup Flow</p>
+            <div class="step-list compact">
+              <div class="step-item compact">
+                <span class="step-number">1</span>
+                <div>
+                  <strong>Enter cloud details</strong>
+                  <span>Use the cloud URL and connector key from the dashboard</span>
+                </div>
+              </div>
+              <div class="step-item compact">
+                <span class="step-number">2</span>
+                <div>
+                  <strong>Add local station</strong>
+                  <span>Fill Niagara URL, login, and branch path</span>
+                </div>
+              </div>
+              <div class="step-item compact">
+                <span class="step-number">3</span>
+                <div>
+                  <strong>Save and sync</strong>
+                  <span>Push points to the cloud dashboard</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="message" class="message info">Loading connector setup...</section>
 
+      <section class="info-grid">
+        <article class="panel info-card">
+          <p class="table-eyebrow">Private Networks</p>
+          <h2>Use local Niagara URL</h2>
+          <p>This app should run on the same network as the Niagara station.</p>
+        </article>
+        <article class="panel info-card">
+          <p class="table-eyebrow">Cloud Mapping</p>
+          <h2>Station ID must match</h2>
+          <p>Use the exact cloud station ID created on the dashboard.</p>
+        </article>
+        <article class="panel info-card">
+          <p class="table-eyebrow">Reset Safe</p>
+          <h2>Start fresh anytime</h2>
+          <p>Use Reset Setup to clear old saved station details without touching files.</p>
+        </article>
+      </section>
+
       <section class="panel install-panel">
         <div class="section-heading">
           <div>
             <p class="table-eyebrow">Connector App</p>
             <h2>Local App Details</h2>
+            <p class="section-copy">These details help you confirm where this connector is running and where its setup is saved.</p>
           </div>
         </div>
         <div class="install-grid">
@@ -69,6 +127,7 @@
           <div>
             <p class="table-eyebrow">Cloud Settings</p>
             <h2>Connector Setup</h2>
+            <p class="section-copy">Start with the cloud URL and connector key you received from the dashboard.</p>
           </div>
         </div>
 
@@ -101,6 +160,7 @@
           <div>
             <p class="table-eyebrow">Local Niagara Stations</p>
             <h2>Stations To Sync</h2>
+            <p class="section-copy">Add one or more local stations from this same network.</p>
           </div>
           <button id="add-station-button" type="button" class="secondary-button">Add Station</button>
         </div>
@@ -165,6 +225,7 @@
             <span>Allow self-signed Niagara certificate</span>
           </label>
         </div>
+        <p class="station-card-note">Tip: if Wi‑Fi or local IP changes, update the Niagara URL before syncing again.</p>
       </div>
     </template>
 

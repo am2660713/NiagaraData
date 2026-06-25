@@ -8,6 +8,16 @@
   </head>
   <body>
     <main class="page">
+      <section class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark">Niagara Dashboard</div>
+          <div class="brand-copy">
+            <strong>Cloud + Connector View</strong>
+            <span>Manage stations and open each dashboard in one place</span>
+          </div>
+        </div>
+      </section>
+
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Dashboard Home</p>
@@ -23,19 +33,66 @@
           </div>
         </div>
 
-        <div class="panel stats-panel">
-          <div class="status-row">
-            <span>Total stations</span>
-            <strong id="station-count">0</strong>
+        <div class="hero-side">
+          <div class="panel stats-panel">
+            <div class="status-row">
+              <span>Total stations</span>
+              <strong id="station-count">0</strong>
+            </div>
+            <div class="status-row">
+              <span>Status</span>
+              <strong id="home-status">Loading...</strong>
+            </div>
           </div>
-          <div class="status-row">
-            <span>Status</span>
-            <strong id="home-status">Loading...</strong>
+
+          <div class="panel mini-help-panel">
+            <p class="table-eyebrow">Quick Start</p>
+            <div class="step-list">
+              <div class="step-item">
+                <span class="step-number">1</span>
+                <div>
+                  <strong>Add station</strong>
+                  <span>Create a direct or connector station below</span>
+                </div>
+              </div>
+              <div class="step-item">
+                <span class="step-number">2</span>
+                <div>
+                  <strong>Open page</strong>
+                  <span>Each station gets its own dashboard automatically</span>
+                </div>
+              </div>
+              <div class="step-item">
+                <span class="step-number">3</span>
+                <div>
+                  <strong>Sync locally</strong>
+                  <span>Use the connector only for private Niagara networks</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="message" class="message info">Loading stations...</section>
+
+      <section class="info-grid">
+        <article class="panel info-card">
+          <p class="table-eyebrow">Direct Mode</p>
+          <h2>Cloud connects itself</h2>
+          <p>Use this when your Niagara URL is public or reachable from the server.</p>
+        </article>
+        <article class="panel info-card">
+          <p class="table-eyebrow">Connector Mode</p>
+          <h2>Local connector sync</h2>
+          <p>Use this when Niagara is on a private office network or local IP.</p>
+        </article>
+        <article class="panel info-card">
+          <p class="table-eyebrow">Need Help?</p>
+          <h2>Watch the station ID</h2>
+          <p>Connector users must use the exact cloud station ID and connector key.</p>
+        </article>
+      </section>
 
       <section class="panel links-panel">
         <div class="section-heading">
@@ -52,50 +109,80 @@
           <div>
             <p class="table-eyebrow">Setup</p>
             <h2>Add Station</h2>
+            <p class="section-copy">Fill the basic station details first, then open the station page or connector.</p>
           </div>
         </div>
 
         <form id="add-station-form" class="add-station-form">
-          <label class="field">
-            <span>Station Name</span>
-            <input id="station-name-input" type="text" placeholder="Plant 2" required />
-          </label>
-          <label class="field">
-            <span>Station ID (optional)</span>
-            <input id="station-id-input" type="text" placeholder="plant-2" />
-          </label>
-          <label class="field">
-            <span>Access Mode</span>
-            <select id="station-access-mode-input">
-              <option value="direct">Direct Cloud Access</option>
-              <option value="connector">Local Connector Sync</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Connector Key</span>
-            <input id="station-connector-key-input" type="text" placeholder="office-connector-key" />
-          </label>
-          <label class="field">
-            <span>Base URL</span>
-            <input id="station-base-url-input" type="text" placeholder="https://10.0.0.70/obix" />
-          </label>
-          <label class="field">
-            <span>Station Username</span>
-            <input id="station-username-input" type="text" placeholder="obixuser" />
-          </label>
-          <label class="field">
-            <span>Branch Path</span>
-            <input id="station-branch-path-input" type="text" value="config/Drivers/ObixNetwork/exports/" />
-          </label>
-          <label class="field">
-            <span>Branch Slot Path</span>
-            <input id="station-branch-slot-path-input" type="text" value="slot:/Drivers/ObixNetwork/exports" />
-          </label>
-          <label class="checkbox-field">
-            <input id="station-self-signed-input" type="checkbox" checked />
-            <span>Allow self-signed certificate</span>
-          </label>
-          <button id="add-station-button" type="submit">Add Station</button>
+          <div class="form-section-card">
+            <div class="form-section-heading">
+              <strong>Basic Details</strong>
+              <span>Name and identify the station</span>
+            </div>
+            <div class="form-section-grid">
+              <label class="field">
+                <span>Station Name</span>
+                <input id="station-name-input" type="text" placeholder="Plant 2" required />
+              </label>
+              <label class="field">
+                <span>Station ID (optional)</span>
+                <input id="station-id-input" type="text" placeholder="plant-2" />
+              </label>
+              <label class="field">
+                <span>Access Mode</span>
+                <select id="station-access-mode-input">
+                  <option value="direct">Direct Cloud Access</option>
+                  <option value="connector">Local Connector Sync</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section-card">
+            <div class="form-section-heading">
+              <strong>Connection Details</strong>
+              <span>Use direct fields for public stations, connector key for private stations</span>
+            </div>
+            <div class="form-section-grid">
+              <label class="field">
+                <span>Connector Key</span>
+                <input id="station-connector-key-input" type="text" placeholder="office-connector-key" />
+              </label>
+              <label class="field">
+                <span>Base URL</span>
+                <input id="station-base-url-input" type="text" placeholder="https://10.0.0.70/obix" />
+              </label>
+              <label class="field">
+                <span>Station Username</span>
+                <input id="station-username-input" type="text" placeholder="obixuser" />
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section-card">
+            <div class="form-section-heading">
+              <strong>Point Discovery</strong>
+              <span>These defaults usually work with `ObixNetwork/exports`</span>
+            </div>
+            <div class="form-section-grid">
+              <label class="field">
+                <span>Branch Path</span>
+                <input id="station-branch-path-input" type="text" value="config/Drivers/ObixNetwork/exports/" />
+              </label>
+              <label class="field">
+                <span>Branch Slot Path</span>
+                <input id="station-branch-slot-path-input" type="text" value="slot:/Drivers/ObixNetwork/exports" />
+              </label>
+              <label class="checkbox-field checkbox-panel">
+                <input id="station-self-signed-input" type="checkbox" checked />
+                <span>Allow self-signed certificate</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-submit-row">
+            <button id="add-station-button" type="submit">Add Station</button>
+          </div>
         </form>
 
         <p id="station-mode-help" class="helper-text">
