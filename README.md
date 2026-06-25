@@ -39,6 +39,7 @@ Connector mode is the important part for private stations on local office networ
 - Connector sync for private/local Niagara stations
 - Automatic point discovery from `config/Drivers/ObixNetwork/exports/`
 - Cached latest connector values shown in the cloud dashboard
+- PostgreSQL-backed station storage instead of runtime-only JSON writes
 
 ## Direct mode vs connector mode
 
@@ -229,6 +230,8 @@ Example `.env`:
 
 ```env
 PORT=3000
+DATABASE_URL=postgresql://postgres:password@localhost:5432/niagara_dashboard
+DATABASE_SSL=false
 NIAGARA_BASE_URL=https://public-station.example.com/obix
 NIAGARA_USERNAME=obixuser
 NIAGARA_PASSWORD=Admin.12345
@@ -236,6 +239,31 @@ NIAGARA_API_KEY=
 NIAGARA_API_KEY_HEADER=x-api-key
 NIAGARA_ALLOW_SELF_SIGNED=true
 ```
+
+## Database storage
+
+The backend now uses PostgreSQL for:
+
+- station definitions
+- connector sync cache
+- future multi-user expansion
+
+Connection is read from:
+
+- `DATABASE_URL`
+- or `NIAGARA_DATABASE_URL`
+
+Optional SSL can be enabled with:
+
+- `DATABASE_SSL=true`
+- or `NIAGARA_DATABASE_SSL=true`
+
+On first start, the server auto-imports existing data from:
+
+- `backend/config/stations.json`
+- `backend/data/station-sync.json`
+
+After that, new station adds, deletes, and connector syncs are stored in PostgreSQL.
 
 ## Render deployment
 
@@ -259,18 +287,16 @@ Run the connector locally or on a local office server instead.
 
 ## Current limitation
 
-`backend/data/station-sync.json` is file-based storage for now.
+The app now stores stations and sync cache in PostgreSQL, but it still does **not** include:
 
-That means:
-
-- local development works well
-- simple demos work well
-- Render may lose synced cache on redeploy/restart unless you later move this to a database
+- real user login/authentication
+- per-user station ownership
+- connector registration and heartbeat tracking
 
 ## Recommended next step
 
 For production, the next improvement should be:
 
-- move users, stations, and synced point cache to a database
-- add real user login/authentication
+- add user accounts and login
+- assign stations to users
 - add connector registration and heartbeat status

@@ -3,6 +3,7 @@ const http = require("node:http");
 const https = require("node:https");
 const path = require("node:path");
 const { URL } = require("node:url");
+const { createDatabase } = require("./database");
 
 const backendDir = __dirname;
 const rootDir = path.join(backendDir, "..");
@@ -28,8 +29,9 @@ const contentTypes = {
   ".ico": "image/x-icon"
 };
 
-const stations = loadStations();
-const stationSyncCache = loadStationSyncCache();
+let storage;
+const stations = [];
+const stationSyncCache = {};
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -47,7 +49,7 @@ const server = http.createServer(async (req, res) => {
     if (requestUrl.pathname === "/api/stations") {
       if (req.method === "POST") {
         const body = await readJsonBody(req);
-        const created = addStation(body);
+        const created = await addStation(body);
         return sendJson(res, 201, {
           station: summarizeStation(created)
         });
@@ -65,7 +67,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const stationId = decodeURIComponent(stationDeleteMatch[1]);
-      const removed = deleteStation(stationId);
+      const removed = await deleteStation(stationId);
       return sendJson(res, 200, {
         ok: true,
         station: summarizeStation(removed)
@@ -78,7 +80,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const body = await readJsonBody(req);
-      const syncResult = saveConnectorSync(body);
+      const syncResult = await saveConnectorSync(body);
       return sendJson(res, 200, syncResult);
     }
 
@@ -146,9 +148,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
-  console.log(`Niagara dashboard is running at http://localhost:${port}`);
+bootstrap().catch((error) => {
+  console.error("Failed to start Niagara dashboard:", error.message);
+  process.exit(1);
 });
+
+async function bootstrap() {
+  storage = await createDatabase({
+    connectionString: resolveDatabaseUrl(),
+    ssl: resolveDatabaseSsl(),
+    stationsSeedFile: stationsFile,
+    syncSeedFile: stationSyncFile,
+    fallbackStations: buildFallbackStations()
+  });
+
+  const loadedStations = await loadStations();
+  stations.splice(0, stations.length, ...loadedStations);
+
+  const loadedSyncCache = await storage.loadStationSyncCache();
+  for (const key of Object.keys(stationSyncCache)) {
+    delete stationSyncCache[key];
+  }
+  Object.assign(stationSyncCache, loadedSyncCache);
+
+  server.listen(port, () => {
+    console.log(`Niagara dashboard is running at http://localhost:${port}`);
+  });
+}
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -203,41 +229,9 @@ function writeJsonFile(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function loadStations() {
-  if (fs.existsSync(stationsFile)) {
-    const parsed = loadJsonFile(stationsFile, []);
-
-    if (!Array.isArray(parsed)) {
-      throw new Error("backend/config/stations.json must be an array.");
-    }
-
-    return parsed.map(normalizeStation).filter(Boolean);
-  }
-
-  const fallbackBaseUrl = (process.env.NIAGARA_BASE_URL || "").trim();
-  if (!fallbackBaseUrl) {
-    return [];
-  }
-
-  return [
-    normalizeStation({
-      id: "default-station",
-      name: "Default Station",
-      baseUrl: fallbackBaseUrl,
-      username: process.env.NIAGARA_USERNAME || "",
-      password: process.env.NIAGARA_PASSWORD || "",
-      apiKey: process.env.NIAGARA_API_KEY || "",
-      apiKeyHeader: process.env.NIAGARA_API_KEY_HEADER || "x-api-key",
-      allowSelfSigned: String(process.env.NIAGARA_ALLOW_SELF_SIGNED || "false").toLowerCase() === "true",
-      entries: readLegacyPointsConfig(),
-      connectionMode: "direct"
-    })
-  ].filter(Boolean);
-}
-
-function loadStationSyncCache() {
-  const parsed = loadJsonFile(stationSyncFile, {});
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+async function loadStations() {
+  const loadedStations = await storage.loadStations();
+  return loadedStations.map(normalizeStation).filter(Boolean);
 }
 
 function normalizeStation(station) {
@@ -277,16 +271,16 @@ function normalizeStation(station) {
   };
 }
 
-function addStation(input) {
+async function addStation(input) {
   const rawStation = buildStationFromInput(input);
-  appendStationConfig(rawStation);
+  await storage.upsertStation(rawStation);
 
   const normalized = normalizeStation(rawStation);
   stations.push(normalized);
   return normalized;
 }
 
-function deleteStation(stationId) {
+async function deleteStation(stationId) {
   const stationIndex = stations.findIndex((station) => station.id === stationId);
   if (stationIndex === -1) {
     const error = new Error(`Station '${stationId}' was not found.`);
@@ -295,14 +289,68 @@ function deleteStation(stationId) {
   }
 
   const [removed] = stations.splice(stationIndex, 1);
-  persistStationsConfig();
+  await storage.deleteStation(stationId);
 
   if (stationSyncCache[stationId]) {
     delete stationSyncCache[stationId];
-    writeJsonFile(stationSyncFile, stationSyncCache);
+    await storage.deleteStationSync(stationId);
   }
 
   return removed;
+}
+
+function buildFallbackStations() {
+  const fallbackBaseUrl = (process.env.NIAGARA_BASE_URL || "").trim();
+  if (!fallbackBaseUrl) {
+    return [];
+  }
+
+  return [
+    {
+      id: "default-station",
+      name: "Default Station",
+      baseUrl: fallbackBaseUrl,
+      username: process.env.NIAGARA_USERNAME || "",
+      password: process.env.NIAGARA_PASSWORD || "",
+      apiKey: process.env.NIAGARA_API_KEY || "",
+      apiKeyHeader: process.env.NIAGARA_API_KEY_HEADER || "x-api-key",
+      allowSelfSigned: String(process.env.NIAGARA_ALLOW_SELF_SIGNED || "false").toLowerCase() === "true",
+      entries: readLegacyPointsConfig(),
+      connectionMode: "direct"
+    }
+  ];
+}
+
+function resolveDatabaseUrl() {
+  const configured =
+    String(process.env.NIAGARA_DATABASE_URL || "").trim() ||
+    String(process.env.DATABASE_URL || "").trim() ||
+    String(process.env.POSTGRES_URL || "").trim();
+
+  if (!configured) {
+    throw new Error("Missing PostgreSQL connection string. Set DATABASE_URL or NIAGARA_DATABASE_URL.");
+  }
+
+  return configured;
+}
+
+function resolveDatabaseSsl() {
+  const sslMode = String(
+    process.env.NIAGARA_DATABASE_SSL ||
+      process.env.DATABASE_SSL ||
+      process.env.PGSSLMODE ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (!sslMode || sslMode === "false" || sslMode === "disable") {
+    return undefined;
+  }
+
+  return {
+    rejectUnauthorized: false
+  };
 }
 
 function buildStationFromInput(input) {
@@ -363,44 +411,6 @@ function buildStationFromInput(input) {
         recursive: false
       }
     ]
-  };
-}
-
-function appendStationConfig(rawStation) {
-  const existing = loadJsonFile(stationsFile, []);
-  if (!Array.isArray(existing)) {
-    throw new Error("backend/config/stations.json must be an array.");
-  }
-
-  existing.push(rawStation);
-  writeJsonFile(stationsFile, existing);
-}
-
-function persistStationsConfig() {
-  writeJsonFile(stationsFile, stations.map(serializeStationConfig));
-}
-
-function serializeStationConfig(station) {
-  return {
-    id: station.id,
-    name: station.name,
-    baseUrl: station.baseUrl,
-    username: station.username,
-    apiKey: station.apiKey,
-    apiKeyHeader: station.apiKeyHeader,
-    allowSelfSigned: station.allowSelfSigned,
-    requirePasswordPrompt: station.requirePasswordPrompt,
-    connectionMode: station.connectionMode,
-    connectorKey: station.connectorKey,
-    entries: station.entries.map((entry) => ({
-      type: entry.type,
-      label: entry.label,
-      path: entry.path,
-      slotPath: entry.slotPath,
-      kind: entry.kind,
-      excludePattern: entry.excludePattern,
-      recursive: entry.recursive
-    }))
   };
 }
 
@@ -467,7 +477,7 @@ function getStationSync(stationId) {
   return stationSyncCache[stationId] || null;
 }
 
-function saveConnectorSync(payload) {
+async function saveConnectorSync(payload) {
   const stationId = String(payload?.stationId || "").trim();
   const connectorKey = String(payload?.connectorKey || "").trim();
   const fetchedAt = normalizeIsoDate(payload?.fetchedAt) || new Date().toISOString();
@@ -503,7 +513,7 @@ function saveConnectorSync(payload) {
   };
 
   stationSyncCache[stationId] = snapshot;
-  writeJsonFile(stationSyncFile, stationSyncCache);
+  await storage.upsertStationSync(snapshot);
 
   return {
     ok: true,
