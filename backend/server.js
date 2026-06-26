@@ -276,6 +276,16 @@ async function addStation(input) {
   await storage.upsertStation(rawStation);
 
   const normalized = normalizeStation(rawStation);
+  if (!normalized) {
+    throwBadRequest("Station could not be normalized after save.");
+  }
+
+  const existingIndex = stations.findIndex((station) => station.id === normalized.id);
+  if (existingIndex !== -1) {
+    stations.splice(existingIndex, 1, normalized);
+    return normalized;
+  }
+
   stations.push(normalized);
   return normalized;
 }
@@ -362,8 +372,7 @@ function buildStationFromInput(input) {
   const branchPath = String(input?.branchPath || "config/Drivers/ObixNetwork/exports/").trim();
   const branchSlotPath = String(input?.branchSlotPath || "slot:/Drivers/ObixNetwork/exports").trim();
   const branchLabel = String(input?.branchLabel || "Obix Exports").trim();
-  const idSource = String(input?.id || name).trim();
-  const id = slugify(idSource);
+  const id = normalizeStationId(input?.id || name);
 
   if (!name) {
     throwBadRequest("Station name is required.");
@@ -477,6 +486,23 @@ function getStationSync(stationId) {
   return stationSyncCache[stationId] || null;
 }
 
+function getConnectorStationOrThrow(stationId) {
+  const lookup = String(stationId || "").trim();
+  const station =
+    stations.find((item) => item.id === lookup) ||
+    stations.find((item) => item.name === lookup) ||
+    stations.find((item) => item.id.toLowerCase() === lookup.toLowerCase()) ||
+    stations.find((item) => item.name.toLowerCase() === lookup.toLowerCase());
+
+  if (!station) {
+    const error = new Error(`Station '${stationId}' was not found.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return station;
+}
+
 async function saveConnectorSync(payload) {
   const stationId = String(payload?.stationId || "").trim();
   const connectorKey = String(payload?.connectorKey || "").trim();
@@ -490,7 +516,7 @@ async function saveConnectorSync(payload) {
     throwBadRequest("Connector sync requires connectorKey.");
   }
 
-  const station = getStationOrThrow(stationId);
+  const station = getConnectorStationOrThrow(stationId);
   if (station.connectionMode !== "connector") {
     throwBadRequest(`Station '${station.name}' is not configured for connector mode.`);
   }
@@ -503,7 +529,7 @@ async function saveConnectorSync(payload) {
 
   const points = sanitizeConnectorPoints(payload?.points);
   const snapshot = {
-    stationId,
+    stationId: station.id,
     stationName: station.name,
     fetchedAt,
     syncedAt: new Date().toISOString(),
@@ -571,12 +597,11 @@ function normalizeIsoDate(value) {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 }
 
-function slugify(value) {
+function normalizeStationId(value) {
   return String(value)
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[?#]/g, "");
 }
 
 function throwBadRequest(message) {
