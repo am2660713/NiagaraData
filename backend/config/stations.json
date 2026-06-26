@@ -32,5 +32,22 @@
         "recursive": false
       }
     ]
+  },
+  {
+    "id": "Test1",
+    "name": "Test1",
+    "connectionMode": "connector",
+    "connectorKey": "test1-key",
+    "baseUrl": "https://10.0.0.152/obix",
+    "allowSelfSigned": true,
+    "entries": [
+      {
+        "type": "branch",
+        "label": "Obix Exports",
+        "path": "config/Drivers/ObixNetwork/exports/",
+        "slotPath": "slot:/Drivers/ObixNetwork/exports",
+        "recursive": false
+      }
+    ]
   }
 ]
